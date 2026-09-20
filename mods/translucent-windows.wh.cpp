@@ -5917,9 +5917,12 @@ COLORREF __fastcall HookedFillRectClr(HDC hdc, LPRECT lprect, COLORREF color)
 // We return white color so the black text inside listboxes are readable on system light theme.
 HBRUSH (__fastcall *ListBox_GetBrush_orig)(struct tagLBIV*, HBRUSH*);
 HBRUSH __fastcall HookedListBox_GetBrush(struct tagLBIV *a1, HBRUSH *hbr)
-{   
-    // Default return brush: GetSysColorBrush(COLOR_WINDOW)
-    HBRUSH ret = g_IsSysThemeDarkMode ? ListBox_GetBrush_orig(a1, hbr) : (HBRUSH)GetStockObject(WHITE_BRUSH);
+{
+    // Keep light-theme listboxes white, but use the mod's dark COLOR_WINDOW
+    // brush in dark mode instead of the native brush which can render white.
+    HBRUSH ret = g_IsSysThemeDarkMode
+        ? GetSysColorBrush(COLOR_WINDOW)
+        : (HBRUSH)GetStockObject(WHITE_BRUSH);
     return ret;
 }
 
@@ -6253,49 +6256,28 @@ BOOL WINAPI HookedFillRect(HDC hdc, LPCRECT lprc, HBRUSH hbr)
 BOOL (__fastcall *SetDarkThemeColors_orig)(void **, HDC);
 BOOL __fastcall HookedSetDarkThemeColors(void **Brush, HDC hdc)
 {
-    SetBkColor(hdc, RGB(0, 0, 0));
-    SetTextColor(hdc, g_IsSysThemeDarkMode ? RGB(255, 255, 255) : RGB(0, 0, 0));
-    //if ( !*Brush )
-        *Brush = (void*)GetSysColorBrush(COLOR_WINDOW);
-    return *Brush != nullptr;
+    // Preserve the native common-dialog dark-theme colors.
+    // The previous override forced this area to pure black.
+    return SetDarkThemeColors_orig(Brush, hdc);
 }
 
 // Paint the explorer dialogs editbox background
 LRESULT (STDCALL *CFileNameComboBox_s_ComboBoxRootSubclass_orig)(HWND, UINT, HDC, LPARAM, UINT_PTR, DWORD_PTR);
 LRESULT STDCALL HookedCFileNameComboBox_s_ComboBoxRootSubclass(HWND hWnd, UINT uMsg, HDC wParam, LPARAM lParam, UINT_PTR uIdSubclass, DWORD_PTR dwRefData)
 {
-    auto ret = CFileNameComboBox_s_ComboBoxRootSubclass_orig(hWnd, uMsg, wParam, lParam, uIdSubclass, dwRefData);
-
-    // Intercept the paint messages
-    if (uMsg != WM_CTLCOLOREDIT && uMsg != WM_CTLCOLORLISTBOX && uMsg != WM_CTLCOLORSTATIC) 
-        return ret;
-    
-    HDC hdc = reinterpret_cast<HDC>(wParam);
-    SetBkColor(hdc, RGB(0, 0, 0));
-    SetTextColor(hdc, g_IsSysThemeDarkMode ? RGB(255, 255, 255) : RGB(0, 0, 0));
-    return reinterpret_cast<LRESULT>(GetSysColorBrush(COLOR_WINDOW));
+    // Preserve native common-dialog control colors instead of forcing
+    // the File name edit control to a pure-black background.
+    return CFileNameComboBox_s_ComboBoxRootSubclass_orig(
+        hWnd, uMsg, wParam, lParam, uIdSubclass, dwRefData);
 }
 
 // Paint the explorer dialogs editbox background
 BOOL (STDCALL *CComboBoxExBase_OnWinEvent_orig)(class CComboBoxExBase *, HWND, UINT, HDC, LPARAM, LRESULT*);
 BOOL STDCALL HookedCComboBoxExBase_OnWinEvent(class CComboBoxExBase *__this, HWND hWnd, UINT uMsg, HDC hdc, LPARAM lParam, LRESULT* pResult)
 {
-    auto ret = CComboBoxExBase_OnWinEvent_orig(__this, hWnd, uMsg, hdc, lParam, pResult);
-
-    // Intercept the paint messages
-    if (uMsg != WM_CTLCOLOREDIT && uMsg != WM_CTLCOLORLISTBOX && uMsg != WM_CTLCOLORSTATIC) 
-        return ret;
-
-    if (ret == false && pResult != nullptr && *pResult != 0) 
-    {
-        // C. Overwrite the original SetBkColor and SetTextColor
-        SetBkColor(hdc, RGB(0, 0, 0));          // Black Background
-        SetTextColor(hdc, g_IsSysThemeDarkMode ? RGB(255, 255, 255) : RGB(0, 0, 0));  // White Text
-
-        // D. Replace the original Dark Gray brush in the out-parameter with our Black Brush
-        *pResult = reinterpret_cast<LRESULT>(GetSysColorBrush(COLOR_WINDOW));
-    }
-    return ret;
+    // Preserve native common-dialog color handling instead of forcing
+    // edit/list/static controls to a pure-black background.
+    return CComboBoxExBase_OnWinEvent_orig(__this, hWnd, uMsg, hdc, lParam, pResult);
 }
 
 VOID Comdlg32Hooks()
