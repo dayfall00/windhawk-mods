@@ -5918,6 +5918,8 @@ COLORREF __fastcall HookedFillRectClr(HDC hdc, LPRECT lprect, COLORREF color)
 HBRUSH (__fastcall *ListBox_GetBrush_orig)(struct tagLBIV*, HBRUSH*);
 HBRUSH __fastcall HookedListBox_GetBrush(struct tagLBIV *a1, HBRUSH *hbr)
 {
+    ListBox_GetBrush_orig(a1, hbr);
+
     // Keep light-theme listboxes white, but use the mod's dark COLOR_WINDOW
     // brush in dark mode instead of the native brush which can render white.
     HBRUSH ret = g_IsSysThemeDarkMode
@@ -6253,8 +6255,8 @@ BOOL WINAPI HookedFillRect(HDC hdc, LPCRECT lprc, HBRUSH hbr)
 }
 
 // Paint the explorer dialogs bottom part background
-BOOL (__fastcall *SetDarkThemeColors_orig)(void **, HDC);
-BOOL __fastcall HookedSetDarkThemeColors(void **Brush, HDC hdc)
+BOOL (STDCALL *SetDarkThemeColors_orig)(void **, HDC);
+BOOL STDCALL HookedSetDarkThemeColors(void **Brush, HDC hdc)
 {
     // Preserve the native common-dialog dark-theme colors.
     // The previous override forced this area to pure black.
